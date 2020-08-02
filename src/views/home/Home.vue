@@ -8,9 +8,12 @@
       <HomeSwiper :banners="banners"></HomeSwiper>
       <home-recommend-view :recommends="recommends"></home-recommend-view>
      <feature-view></feature-view>
-       <tab-control :titles = "['流行','新款','精选']" class="tab-control"></tab-control>
+       <tab-control :titles = "['流行','新款','精选']"
+         @tabClick="tabClick"     class="tab-control"></tab-control>
+      <goods-list :goods="showgoods"></goods-list>
+       <!--因为这里currenttype是响应式的，你点击改变了所以数据也会变-->
        <ul>
-         <li>xx</li>
+         <li>======</li>
          <li>xx</li>
          <li>x</li>
          <li>xx</li>
@@ -73,37 +76,69 @@
   import HomeRecommendView from "./childComps/HomeRecommendView"
   import FeatureView from "./childComps/FeatureView"
   import tabControl from "components/content/tabControl/tabControl"
-
+  import GoodsList from "components/content/goods/GoodsList"
+  import GoodsListItem from "components/content/goods/GoodsListItem"
 
   export default {
      name: "Home",
      components:{
        HomeSwiper,
-          NavBar,HomeRecommendView,FeatureView,tabControl
+          NavBar,HomeRecommendView,FeatureView,tabControl,GoodsList,GoodsListItem
       },data(){
         return{
            banners : [],
           recommends: [],
           goods:{
-             'pop':{page:0 ,list:[]},
-            'news':{page:0 ,list:[]},
-            'sell':{page:0 ,list:[]}
-          }
+             new:{page:0,list:[]},
+             pop:{page:0,list:[]},
+             sell:{page:0,list:[]}
+          },
+          currentType:'pop'
+        }
+    },
+    computed:{
+        showgoods(){
+          return this.goods[this.currentType].list
         }
     },
     created() {
-       this.getHomeMultidata()
-         , this.getHomeGoods('pop')
+           this.getHomeMultidata()
+             //下面是请求商品数据
          , this.getHomeGoods('new')
-         , this.getHomeGoods('sell')
+         , this.getHomeGoods('pop')
+        , this.getHomeGoods('sell')
     },
     methods:{
+      /**
+       *事件监听的方法
+       * @param type
+       */
+      tabClick(index){
+        console.log(index);
+        switch (index) {
+          case 0:this.currentType = 'pop'
+                break;
+          case 1:this.currentType = 'new'
+            break;
+          case 2:this.currentType = 'sell'
+            break;
+        }
+      },
+      /**
+       *网络请求的方法
+       * @param type
+       */
        getHomeGoods(type){
+         console.log("进来了gethomegoods 的类型："+type);
          //2、请求商品数据
-         const page = this.goods[type].page+1
+          const page = this.goods[type].page+1
             getHomeGoods(type,page).then(res=>{
-              this.goods[type].list.push(...res.data.list)
-              this.goods[type].page+=1
+              console.log(".///"+JSON.stringify(res));
+               // for(var i in res.data){
+                this.goods[type].list.push(...res.data)
+                 // this.goods[type].list.push(res.data[i])
+            //  }
+              this.goods[type].page+=1;
          })
        },
       getHomeMultidata(){
@@ -135,6 +170,7 @@
     z-index: 9;
 }
   .tab-control{
+    z-index: 9;
     position: sticky;
     /*移动端一般都支持这个属性，到达一定高度的时候自动变成fixed*/
     top: 44px;
