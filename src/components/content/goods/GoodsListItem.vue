@@ -1,6 +1,6 @@
 <template>
-  <div class="goods-item">
-    <img :src="gooditem.show.img">
+  <div class="goods-item" @click="itemclick">
+    <img :src="gooditem.show.img" @load="imageload">
     <div class="goods-info">
       <p>{{gooditem.title}}</p>
       <span class="price">{{gooditem.price}}</span>
@@ -22,12 +22,21 @@
           }
         }
       }
+      ,methods:{
+        imageload(){
+          this.$bus.$emit("itemimageload")
+        },
+        itemclick(){
+          console.log("跳转到详情页"+this.gooditem.iid);
+          this.$router.push("/detail/"+ this.gooditem.iid)
+        }
+      }
     }
 </script>
 
 <style scoped>
   .goods-item {
-    padding-bottom: 40px;
+   padding-bottom: 80px;
     position: relative;
     width: 48%;
 
@@ -35,6 +44,7 @@
 
   .goods-item img {
     width: 100%;
+    /*跟item一样大，然后有个圆角*/
     border-radius: 5px;
   }
 
@@ -63,6 +73,7 @@
 
   .goods-info .collect {
     position: relative;
+    /*收藏的图标相对于数字来定位*/
   }
 
   .goods-info .collect::before {

@@ -1,0 +1,129 @@
+【方案1：不会出现刷的时候一卡一卡】:
+现在我们需要监听图片加载完就this.scroll.refresh下。只要有一张加载完
+就执行以下refresh（），是Home.vue来refresh()因为Home可以拿到scroll.vue。
+重新计算下可滚动的高度【他是根据scroll.scrollHeight来决定的
+】这个属性不能设置死。
+
+我们的图片在goodslistitem。vue组件里，然后home.vue跟他是【非父子组件】，他们
+怎么进行通信呢？①我们可以用vuex，在每一次图片加载完，就改变
+veux里面的一个属性，然后home.vue引用该属性，并且实时监听属性
+的改变，一旦发生改变就执行refresh()。  ②这里采用$bus事件总线，
+在goodslistitem.vue组件里发射事件：this.$bus.$emit("事件A")
+然后在Home.vue里的create()生命周期（一旦组件创建完就开始监听）里监听
+:this.$bus.$on("事件A"，（）={   //第二个是：回调函数（参数）
+  refresh().....})。我们要注册$bus到原型。Vue.prototype.$bus = new Vue()
+
+【方案2：执行的频率有点高，因为执行了30次】
+在方案1，我们在create()的方法里执行refresh，但是我们的this.scroll可能为空
+还没有挂载。我们初始化scroll.vue是在 mounted()里面做的，然后才是事件监听等，
+有可能在mounted()初始化之前，我们的这个还是null.然后我们图片来的非常快，
+就发送网络请求展示，然后就回调。这个时候this.scroll可能就是Null。就调不到refresh
+--我们改进下scroll.vue的调用方法： refresh(){
+                  this.scroll && this.scroll.refresh();
+  //就是判断scroll有值才执行    }
+--然后我们在Home.vue的mounted（）里面执行refresh()更好。create可能拿不到scroll .
+在mounted方法里保证拿到的scroll一定是有值的。【两种可能的问题】
+ 
+在方案1进一步改善：refresh太多次了，我们更希望在最后一次执行refresh()。
+防抖函数：只让最后一次，发送一次请求。在刷新第一次的时候等待，如果其他图片
+也加载完了就一起刷新。需要封装一个函数，搞个定时器等一会。在单位时间没下一步就执行
+debounce(fun,delay){ //delay等多久
+        let timer = null;
+        return function (...args) {
+          if(timer)clearTimeout(timer)//如果timer有值，就清除掉
+          timer = setTimeout(()=>{
+             fun.apply(this,args) //如果在时间内没取消掉，就执行函数
+          },delay)
+        }
+      }
+
+ const refresh11= debounce(this.$refs.scrollzujian.refresh，500)相当于
+ const refresh11= function (...args) {
+          if(timer)clearTimeout(timer)//如果timer有值，就清除掉
+          timer = setTimeout(()=>{
+             fun.apply(this,args) //如果在时间内没取消掉，就执行函数
+          },delay)
+        }
+然后在$bus.$on的回调里面{refresh11();}
+解释下：到30次的时候进来发现timer有值，然后清除，然后延迟500毫秒，没有31次，
+等到延迟时间过，就拿到fun就执行函数。
+
+【方案3：上拉加载更多实现】
+需要从外界传入pullUpload属性是boolean类型默认是false，首页穿过去是true。
+在scroll.vue监听滚到底部。如果if(this.pullUpload) 为true才监听
+if(this.pullUpLoad){
+          this.scroll.on("pullingUp",()=>{
+            this.$emit("pullingup")
+            }) }
+在home.vue监听这个事件，传入最后两个属性：
+ <scroll class="content" ref="scrollzujian" :probeType="3"
+       @scroll="contentscroll" :pullUpLoad="true" @pullingup="loadmore">
+ loadmore(){
+        console.log("home在加载");
+        this.getHomeGoods(this.currentType)//为当前类型加载更多
+      }
+然后在getHomeGoods(type)方法里：$refs.scrollzujian.finishPullUp()//加载更多
+=====================
+【方案4吸顶】
+必须知道滚到到多少时，有吸顶效果。tabcontroll有个叫offesettop，获取他
+但是组件是没有这个属性的。可以拿到组件的$el.offsettop，在Mounted里这样拿
+【所以的组件都有一个属性$el;用于获取组件中的元素的】
+但是在mounted拿到的不一定是轮播图已经加载完的，所以我们要等上面的图片加载完
+再去拿offsettop比较准确。中间的小图片比较小，所以影响不大。就轮播图加载的比较慢
+我们在homeSwiper.vue里面的图片@load="imageload" ,然后发出swiperimageload事件
+在home.vue监听实现方法，我们只想调用一次。不想四次。因为对于高度来说，我们获取一次就能知道撑开的高度是多少了，后面三次是多余的。
+
+homeSwiper.vue：搞个变量isLoad,默认是false。用这个进行状态的记录
+ imageload(){
+//第一次取反，为true发出事件，然后设置为true,下一次进来的时候取反就是false
+    if(!this.isload){this.$emit("swiperimageload")
+	 this.isload=true
+} }//这里没必要用防抖函数，我们第一次拿到结果，后面就都没必要了
+
+在Home.vue的轮播图组件里监听"swiperimageload"的方法，this.tabOffsettop=this.$refs.tabControl.$el.offsetTop;这样获取正确的值
+我们在home.vue监听滚动【contentScroll(position)这个方法，之前做了大于1000
+就显示到顶部的图标】的同时，决定tabControl是否吸顶（position：fixed），
+this.isTabFixed = (-position.y) > this.tabOffsetTop。如果大于之前算的574值就吸顶
+先搞个变量isTabFixed:false ，默认不吸顶。↑↑↑↑
+然后在<tab-control>组件动态绑定样式，【class="{fixed:isTabFixed}"】为true有class样式
+.fixed{  position: fixed ; left:0 ;right:0;top:44px；}
+
+▲：测试发现当到了574px的时候，一闪tabcontrol就没了。不知道跑到哪了。因为原来有个
+tabcontrol顶着下面的内容，然后fixed就脱标了，下面的内容就上去了。better-scroll原理：
+在滚动的时候，有个属性一直在变，transform:translate(0px,-561px )，滚动的话561px这个
+属性一直在变动。如果里面有个fixed的东西也能被translate改变的。所以他消失到哪了，跟随着滚动一起跑到上面去了，非常靠上了。
+
+【解决办法：我们复制一份tabcontrol1组件。在nav-bar下面。测试发现tabcontrol1
+被购物街盖住了，因为购物街导航fixed脱标了【之前用原生】，所以tabcontrol1就被顶上去了
+其实导航没必要脱标的，因为中间用了局部滚动，不会影响到购物街导航。
+然后我们把.home-nav原来的fixed属性删掉，没必要。因为购物街不脱标了，所以tabcontrol1
+就会停留在购物街下面。紧挨着的。给tabcontrol1加一个class属性，position：relative；
+z-index:9;然后我就可以让滚动到574px的时候，tabcontrol1显示出来，默认隐藏。
+然后tabcontrol1加个属性：v-show="isTabFixed"。两个重叠起来给人一种假象。】
+
+【当我们没滚动574px,点击新款，然后往上滚，又会显示流行。需要保持一致。
+拿到tabcontrol的currentindex。在Home.vue监听事件点击tabclick(index)的方法里面
+this.$refs.tabcontrol1.currentIndex=index ;
+this.$refs.tabcontrol2.currentIndex=index ;要两个保持最新点击的index一致即可
+】
+【总结下：问题:动态的改变tabControl的样式时, 会出现两个问题:
+问题一: 下面的商品内容, 会突然上移
+问题二: tabControl虽然设置了fixed, 但是也随着Better-Scroll一起滚出去了.】
+
+
+=========
+【Home离开时记录状态和位置】
+用户点击分类，要停留在原来滚到的位置。默认所有的路由的对象离开会被销毁，不希望重新
+创建。在App.vue里对<keep-alive> <router-view> </keep-alive>
+解决方法▲：
+离开时, 保存一个位置信息saveY。进来时, 将位置设置为原来保存的位置saveY信息即可.
+注意: 最好回来时, 进行一次refresh()
+在Home.vue里修改代码：
+①在data()保存一个变量：saveY :0   ----在deactivated()离开时获取：
+this.saveY = this.$refs.scrollzujian.scroll.y //获取到离开的y
+②在下次进来时在activated（）{ this.$refs.scrollzujian.scrollTo(0,this.saveY,0) 
+      this.$refs.scroll.refresh()   }
+在下次进来时滚到到上次的位置。最好还要refresh一下
+
+也可以封装一下getScrollY（）{ return this.scroll ? this.scroll.y :0 }
+如果有值就返回，没有就返回0。比较严谨
