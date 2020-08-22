@@ -1,0 +1,78 @@
+﻿
+【显示购物车的页面】
+getters.js代码如下：
+export default{
+    cartList(state){
+	return state.cartList;  
+}
+    cartLenth(state){
+	return state.cartList.length
+   }//我们想把这个类的所有方法转成计算属性，更方便
+}
+在cart.vue代码如下：
+<nav-bar>
+  <div slot="center">购物车{{cartLenth}}</div> </nav-bar>
+<!--商品列表显示>....
+import {mapGetters} from "vuex"
+
+computed:{
+	...mapGetters(['cartList','cartLenth'])
+}
+//显示的时候直接{{cartLenth}}就可以了
+
+【购物车商品列表显示】
+创建cartList.vue子组件
+<template> <div class="cart-list"> <scroll class="content">
+  <cart-list-item v-for="(item,index) in cartLisst" :product="item" />
+....
+
+导入Scroll,CartListItem两个组件。
+computed:{ ...mapGetters(['cartList']) }//获取到进行遍历，item就是一个product
+//最好把滚动放到cart.vue里面。
+
+显示的列表CartListitem也要封装成小的组件。
+CartListItem.vue需要接受Props:{ product 是Object类型}
+▲：这里数据更新了，需要刷新refresh下。才能滚。最初进到购物车的可滚动高度为0
+better-scroll并不知道你添加了新的数据，他认为还是0.需要重新计算高度。
+因为这个CartListItem.vue做过缓存的，不能在mounted和created里面做刷新，最好去
+activated（）里面刷新。这里也可以用watch监听length的变化进行刷新
+=============================
+对按钮勾选进行封装一下。content/checkButton.vue。这个组件要导入到cartlistitem里面
+<template> <div class="check-button" :class="{check:isChecked}"> 
+    <img src="~assets/img/cart/tick.svg">
+接受一个属性:props:{isChecked:{Boolean}}//是否是选中的状态,默认不选中
+
+样式：.check-button{ border-radius:50%;
+border:2px solid #aaa } //默认是灰色边框，无背景
+.check{ border-color :red ;bc:red;} //选中边框和背景是红色
+================================
+CartListItem.vue的代码如下：
+<div class="item-selector">//直接监听组件的点击更方便
+  <CheckButton @click.native="checkclick" :isChecked="itemInfo.checked">
+样式如下：
+.item-selector{
+  width:20px ; display :flex ; justify-content:center; align-items:center
+//后面两个属性就是主轴和侧轴的元素都是居中的意思
+}
+methods:{  checkclick(){ this.itemInfo.checked = !this.itemInfo.checked }}
+============
+选中的属性一定是在模型里面记录的，之后修改对象模型的数据，界面就会跟着改变。
+cartList[商品1，商品2.。]默认情况是选中的。
+▲最好在添加新的商品的方法设置下属性：
+addtocart(state,payload){payload.checked = true ...}
+
+
+合计实现代码：computed:{
+	totalPrice(){
+	  return "¥"+ this.$store.state.cartList.filer(item =>{
+	   return item.checked
+  }).reduce((preValue , item)=>{
+	return preValue + item.price * item.count
+    },0).toFixed(2)
+  }
+}
+
+去结算代码：
+checklength(){
+	return this.cartList.filter(item=>item.checked).length
+}

@@ -56,7 +56,7 @@
             this.scroll.scrollTo(x,y,time);
           },
         refresh(){
-          console.log("----");
+          console.log("--refresh--");
           this.scroll && this.scroll.refresh();
         },
         finishPulling(){

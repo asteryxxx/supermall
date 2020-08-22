@@ -92,9 +92,11 @@
   import backTop from "components/content/backTop/backTop"
   // 导入函数
   import {debounce} from "common/utils";
+  import {itemListMixin} from "common/mixin";
 
   export default {
      name: "Home",
+    mixins:[itemListMixin],
      components:{
        HomeSwiper,backTop,
           NavBar,HomeRecommendView,FeatureView,tabControl,GoodsList,GoodsListItem,Scroll
@@ -111,7 +113,7 @@
           isShowBacktop:false,
           tabOffsetTop: 0,
           isTabFixed :false,
-          saveY:0
+          saveY:0,
         }
     },
     computed:{
@@ -127,7 +129,8 @@
     deactivated(){
        this.saveY = this.$refs.scrollzujian.scroll.y;
       console.log("离开的y: "+this.$refs.scrollzujian.scroll.y);;
-
+        this.$bus.$off("itemimageload",this.itemImgListener)
+      //离开时取消监听
     },
     created() {
 
@@ -137,13 +140,7 @@
          , this.getHomeGoods('pop')
         , this.getHomeGoods('sell')
     },
-  mounted() {
-      const refresh = debounce(this.$refs.scrollzujian.refresh)
-       this.$bus.$on("itemimageload",()=>{
-         refresh()
-         //this.$refs.scrollzujian.refresh()
-       })
-  },
+
     methods:{
       swiperimageload(){
         this.tabOffsetTop = this.$refs.tabcontrol2.$el.offsetTop;

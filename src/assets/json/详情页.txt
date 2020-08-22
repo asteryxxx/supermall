@@ -1,0 +1,232 @@
+【推荐数据显示】
+在detail.vue的data属性声明：recommends:[]。然后导入Goodslist组件
+然后在created()方法里请求到数据并赋值上。
+使用goodslist组件并展示数据。因为推荐数据的格式和之前的格式【product.
+show.img】不一样，推荐数据的格式没有show的key，goodslistitem搞个计算属性，
+showImage(){
+  return this.goodsItem.image || this.goodsItem.show.img  }
+并且<img :src="showImage".....>
+
+【现在还有个问题，详情页的图片数据加载完不应该通知home进行刷新。】
+【方案1：在goodslistitem.vue的imageLoad()方法里通过$bus发出事件的时候
+对路由进行判断，if(this.$route.path.indexOf('/home')){
+                     this.$bus.$emit('homeItemImageLoad')
+             }else if (this.$route.path.indexOf('/detail')){
+                  this.$bus.$emit('detailItemImageLoad')
+    //发出另一个事件
+}】
+【方案2：都发出的this.$bus.$emit('itemImageLoad')事件，
+一旦进入到详情页，首页就不再监听这个事件。修改home.vue代码：
+在data()方法里，声明事件名。全局的itemImgListener:null。
+在监听的事件进行保存。this.itemImgListener = ()=>{....}
+  		this.$bus.$on('itemImgload',this.itemImgListener)
+修改deactivated（）方法,取消监听。this.$bus.$off("itemimgload",this.itemImgListener)然后我们也应该去详情页的mounted()方法里监听。但是这样就有点重复了
+没缓存的vue离开的时候最好用destory()他会触发这个方法。】
+
+【让两个tabcontrol的currentindex保持一致：因为可能created（）方法拿不到$refs.组件
+1、这个修改后的方法还是在created()里的
+if(this.$refs.topTabControl !==undefined){
+	this.$refs.tabcontrol1.currentIndex = index;
+	this.$refs.tabcontrol2.currentIndex = index;
+}
+2、在mounted（）执行也行，就不用判断了
+        this.$refs.tabcontrol1.currentIndex = index;
+	this.$refs.tabcontrol2.currentIndex = index;
+】
+
+【详情页不能滚动的bug解决方法】
+在DetailImageInfo.vue的<img @load="imgload">监听图片加载完，然后发出事件
+在detail.vue的<detail-image-info @detailImage="detailImage"/>监听子发出的
+methods:{
+   detailImage(){
+	let newRefresh = debouce(this.$refs.scroll.refresh,100);
+         newRefresh()	
+  }//这是不可以的，相当于每次生成新的newRefresh，起不到防抖
+}
+这里举个例子：methods:{
+   detailImage(){
+       let name = 'why';console.log(name)
+//假设这个方法执行了10次，name被赋值10次，而不是一次，每次用到的name都是新的临时变量
+         }
+
+
+【详情页-点击标题滚到对应内容】
+在detailNavbar点击标题的时候发出事件，this.$emit("titleclick",index)
+在父组件detail.vue的<detailnavbar @titleclick="titleclick">组件监听。
+在detail.vue定义个属性themeTopYs:[0,1000,2000,3000]先暂时这样随便写。
+titleclick(index){
+	this.$refs.scroll.scrollTo(0,-this.themeTopYs[index],200)
+}
+
+我们可以通过获取每个组件距离顶部的offsettop。
+我们先试试在Mounted（）方法里面获取 this.themeTopYs.push(0),
+ this.themeTopYs.push(this.$refs.params.$el.offsettop) 
+this.themeTopYs.push(this.$refs.recommend.$el.offsettop)offsettop)
+打印发现：第二个和第三个是undefined。▲：意味着$el没有，
+【因为我们之前在detailparamsinfo.vue里做了判断。v-if="Object.keys(paraminfo).length!==0" 只有在这个东西有值的情况下，才渲染这些东西。在mounted不一定数据到了。
+$el就是<template>模板的根组件div，但是我们根组件做了判断，没数据不渲染。】
+
+不是说数据有了，template模板就立马有值的，要等他把数据渲染完之后，更新Dom才有值。
+有一个this.$nextTick(（）=>{})方法用来做这个事情的。！！！！！他会等这些东西都
+渲染完了会过来回调一次这个函数。就能保证$el有值了。
+▲：但是还有个bug,仅仅是把Dom渲染完了，但是图片可能还没加载完。目前获取到的
+offsettop是不包含图片的，一般值不对都是因为图片的问题。
+我们在之前的detailImageload(){
+  this.newRefresh();
+  .....//在这里操作比较好，证明图片已经加载完了，再去获取
+}
+▲应用下防抖：在data()声明getThemeTopy:null  //这里只是赋值，没有调用哦！！！
+在created()方法里给他赋值，this.getThemeTopy = debounce(()=>{
+    this.themeTopys=[]
+  this.themeTopYs.push(0),
+  this.themeTopYs.push(this.$refs.params.$el.offsettop) 
+   this.themeTopYs.push(this.$refs.recommend.$el.offsettop)  
+....
+})
+detailImageload(){
+  this.newRefresh();
+  this.getThemeTopy()//在这里调用即可
+}
+
+
+【滚动内容显示对应标题】
+在detail.vue的Scrol组件l监听发出来的scroll事件。
+@scroll="contentsrcoll"   :probetYPE="3" 要传一个属性
+methods:{
+   contentscroll(position){
+      const positionY = - position .y
+    //2、positionY和主题中的值进行对比，[0,7938,9120,9452]
+     //在0和7938之间，index =0.。。。以此类推
+
+    //for(let i in this.themeTopYs){
+    //console.log(i+1)//这里遍历的话i类型是string类型，字符串，假如i:0+1=01，而不是1
+  	//要么就对i进行转化成数字类型的    parseInt(i)
+   
+    //for(let i=0;i< this.themeTopYs.lenth;i++)
+    //这样可能会造成最后一个元素i+1时会下标越界，然后undefind
+ 
+    let length=this.themeTopYs.length;
+    for(let i=0;i< this.themeTopYs.lenth;i++){
+      if((i<length-1&&positionY>this,themeTopYs[i]&&positionY<this,themeTopYs[i+1])
+           ||(i===length-1 &&positionY>this,themeTopYs[i] ))//打印太频繁了
+▲：为了不那么频繁，我们搞个变量currentindex:0  记录它。
+   if((this.currentindex !=i)&&((i<length-1&&positionY>this,themeTopYs[i]&&positionY<this,themeTopYs[i+1])||(i===length-1 &&positionY>this,themeTopYs[i] ))) 
+//第一次进来是0，打印一次。然后划划到第二个组件之前currentindex都是0
+    this.currentIndex = i;
+    this.$refs.detailnavnav.currentindex = this.currentIndex
+}
+}
+▲改善：[0,7938,9120,9452，非常大的值]
+在之前的this.themeTopY=[]数组中末尾添加一个元素
+【0,7938,9120,9452，1.79E+305】
+this.themeTopY.push(Number.MAX_VALUE)
+  for(let i=0;i< this.themeTopYs.lenth-1;i++){
+ //最后一个不需要遍历比较，因为那个是最大值，是判断的作用
+   if((this.currentIndex!==i)&&(positionY>=this.themeTopYs[i]&&             positionY<this.themeTopYs[i+1])){....}
+
+【加入购物车】
+给加入购物车的div监听点击，@click="addtocart"
+methods:{
+	addtocart(){ this.$emit("addCart")   }
+}
+然后在detail.vue监听子组件发送的事件，在<detail-bottom-bar @addCart="addCToCart">
+methods:{
+	addCToCart(){ //获取购物车需要展示的信息  
+	   const product = {}
+	   product.image = this.topImages[0]; //只取一张显示即可
+	   product.title = this.goodsInfo.title;
+	   product.desc = this.goodsInfo.desc ;
+	   product.price = this.goodsInfo.newPrice;
+	   product.iid = this.iid;
+	 //将商品添加到购物车里面,修改任何东西都要经过mutations
+           this.$store.commit('addCart',product)//方法名和下面一致哦	  
+ }
+}
+index.js //vuex的配置文件：
+ state:{  cartList:[]},mutations:{
+	addCart(state,payload){
+		state.cartList.push(payload)
+	}
+}
+
+可以在detail.vue的<template>之间输出打印下:{{$store.cartList.length}}看看有没数据
+▲修改一下添加的商品方法：
+   mutations:{
+	addCart(state,payload){
+             let oldpro = null;
+		for(let item of state.cartList){
+ 		   if(item.iid === payload.iid){ oldpro = item }
+		}
+	}//判断oldpro有没值，有就为true
+            if(oldpro){oldpro.count +=1 }//添加count这个属性，说明存在这个商品
+		else{ payload.count = 1 //多了count属性，之前没存在这个商品
+        	   state.cartList.push(payload)
+          }
+还有一个方法用findIndex也可以：
+   var arr=[{name:"Alex"},{name:"Tom"}];
+    var index = arr.findIndex(item =>item.name ==="Tom");//如果想要对象就find()方法
+    if(index != -1){let oldpro = cartList[index] 
+		oldpro.count += 1;   
+}
+   ▲let oldproduct = state.cartList.find(item => item.iid === payload.iid)
+ //一步就找到了之前是否存在的商品
+
+【重构下mutations,因为mutations唯一的目的就是修改state中的状态，
+还有个设计原则：每一个方法尽可能完成的事件最好单一。▲就是只做一件事。
+我们上面的例子就做了两件：①商品数量加1 ②添加新商品。 因为哪个操作跟踪的都是
+addCart方法，如果想知道是具体做了哪个操作，没法区分的。
+▲最好有判断逻辑的放到action里面。】
+修改之前的代码:this.$store.dispatch('addCart',product);
+
+mutations:{
+	addcounter(state,payload){
+       		payload.count++;//单一，方便追踪到
+            },
+        addTocart(state,payload){
+ 		state.cartList.push(payload)
+         }
+},actions:{
+   addCart(context,payload){}
+	let oldpro = context.state.cartList.find(item => item.iid === payload.iid)
+           if(oldpro){ cotext.commit("addcounter",oldpro)}//▲
+		else{
+		     payload.count = 1;
+		    ▲ context.commit("addTocart",payload)
+	}//做了个分发任务。
+}
+
+
+
+
+
+
+
+
+
+
+
+
+【滚动框】
+方法1：
+#home{
+   position:relative
+    height:100vh
+}
+.content{
+	overflow:hidden;
+	position:absolute;
+	top:44px;
+	bottom:49px;
+	left:0;right:0 
+	bc:#fff
+}
+
+方法2：
+#home{
+      position:relative
+    height:100vh
+}
+.content{
+   height:calc(100% - 93px)
+    overflow:hidden
+}
